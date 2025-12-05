@@ -1,8 +1,18 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import { InterviewData, AnalysisResult } from "../types";
+import {
+  InterviewData,
+  AnalysisResult,
+  TeacherAiResult,
+} from "../types";
 
-// Per guidelines, API key must be from process.env.API_KEY
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
+// Tomar la API key desde Vite
+const apiKey = import.meta.env.VITE_GEMINI_API_KEY as string | undefined;
+
+if (!apiKey) {
+  throw new Error("VITE_GEMINI_API_KEY no está configurada en .env.local");
+}
+
+const ai = new GoogleGenAI({ apiKey });
 
 const analysisSchema = {
   type: Type.OBJECT,
@@ -161,23 +171,22 @@ function buildPrompt(data: InterviewData): string {
   `;
 }
 
+// Función original, la dejamos igual para la UI
 export const analyzeInterviewData = async (
   data: InterviewData
 ): Promise<AnalysisResult> => {
   const prompt = buildPrompt(data);
 
   try {
-    // Use gemini-2.5-pro for complex reasoning and set max thinking budget
     const model = "gemini-2.5-pro";
 
     const response = await ai.models.generateContent({
-      model: model,
+      model,
       contents: prompt,
       config: {
         responseMimeType: "application/json",
         responseSchema: analysisSchema,
         temperature: 0.4,
-        // Per user request, enable thinking mode for complex queries
         thinkingConfig: {
           thinkingBudget: 32768,
         },
@@ -190,7 +199,6 @@ export const analyzeInterviewData = async (
       throw new Error("La respuesta de la IA estaba vacía.");
     }
 
-    // Validate that all required fields are present, especially the new one
     const result: AnalysisResult = JSON.parse(jsonText);
     if (!result.categoryAnalyses.every((c) => "observacionesCorregidas" in c)) {
       console.warn(
@@ -210,4 +218,34 @@ export const analyzeInterviewData = async (
       "No se pudo completar el análisis. Inténtalo de nuevo más tarde."
     );
   }
+};
+
+// NUEVO: helper que empaqueta el resultado para el backend
+export const analyzeTeacherInterview = async (
+  data: InterviewData
+): Promise<TeacherAiResult> => {
+  const result = await analyzeInterviewData(data);
+
+  const strengths = result.categoryAnalyses
+    .map((c) => `• [${c.category}] ${c.oportunidades}`)
+    .join("\n");
+
+  const improvementAreas = result.categoryAnalyses
+    .map((c) => `• [${c.category}] ${c.recomendaciones}`)
+    .join("\n");
+
+  const weaknesses =
+    result.mitigationRecommendations && result.mitigationRecommendations.length
+      ? result.mitigationRecommendations.map((m) => `• ${m}`).join("\n")
+      : undefined;
+
+  return {
+    strengths,
+    weaknesses,
+    improvementAreas,
+    teachingSuitabilityScore: result.overallScore,
+    recommendation: result.finalVerdict,
+    overallComment: result.executiveSummary,
+    rawOutput: result,
+  };
 };

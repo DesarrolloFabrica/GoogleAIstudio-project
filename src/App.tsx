@@ -1,37 +1,95 @@
 import React, { useState, useCallback } from "react";
-import { InterviewData, AnalysisResult } from "./types";
-import { analyzeInterviewData } from "./services/geminiService";
+import {
+  InterviewData,
+  AnalysisResult,
+  TeacherForm,
+} from "./types";
+
+import {
+  analyzeTeacherInterview,
+} from "./services/geminiService";
+import { createTeacherEvaluation } from "./services/teachersService";
+
 import Header from "./components/Header";
 import InterviewForm from "./components/InterviewForm";
 import AnalysisResults from "./components/AnalysisResults";
 import LoadingState from "./components/LoadingState";
 
+const ORG_ID = import.meta.env.VITE_ORG_ID ?? "ORG_DEFAULT";
+
+const mapToTeacherForm = (data: InterviewData): TeacherForm => ({
+  candidate: {
+    fullName: data.candidateName,
+    age: Number(data.age) || 0,
+    schoolName: data.school,
+    programName: data.program,
+    careerSummary: data.careerSummary,
+    teachingExperience: data.previousExperience,
+  },
+  availability: {
+    scheduleDetails: data.availabilityDetails,
+    acceptsCommittees: data.acceptsCommittees,
+    otherJobsImpact: data.otherJobs,
+  },
+  classroomManagement: {
+    evaluationMethodology: data.evaluationMethodology,
+    planIfHalfFail: data.failureRatePlan,
+    handleApatheticStudent: data.apatheticStudentPlan,
+  },
+  aiAttitude: {
+    usesAiHow: data.aiToolsUsage,
+    ethicalUseMeasures: data.ethicalAiMeasures,
+    handleAiPlagiarism: data.aiPlagiarismPrevention,
+  },
+  coherenceCommitment: {
+    caseStudent2_9: data.scenario29,
+    emergencyProtocol: data.scenarioCoverage,
+    handleNegativeFeedback: data.scenarioFeedback,
+  },
+});
+
 const App: React.FC = () => {
-  const [interviewData, setInterviewData] = useState<InterviewData | null>(null);
-  const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
+  const [interviewData, setInterviewData] =
+    useState<InterviewData | null>(null);
+  const [analysisResult, setAnalysisResult] =
+    useState<AnalysisResult | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleFormSubmit = useCallback(async (data: InterviewData) => {
-    setIsLoading(true);
-    setError(null);
-    setAnalysisResult(null);
-    setInterviewData(data);
+  const handleFormSubmit = useCallback(
+    async (data: InterviewData) => {
+      setIsLoading(true);
+      setError(null);
+      setAnalysisResult(null);
+      setInterviewData(data);
 
-    try {
-      const result = await analyzeInterviewData(data);
-      setAnalysisResult(result);
-    } catch (err) {
-      console.error("Error during analysis:", err);
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Ocurrió un error desconocido durante el análisis. Por favor, revisa la consola e inténtalo de nuevo."
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+      try {
+        // 1) IA: análisis con Gemini
+        const aiResult = await analyzeTeacherInterview(data);
+
+        // seguir usando el JSON completo para los gráficos
+        if (aiResult.rawOutput) {
+          setAnalysisResult(aiResult.rawOutput);
+        }
+
+        // 2) DTO para backend
+        const form = mapToTeacherForm(data);
+
+        // 3) Guardar evaluación en el backend
+        await createTeacherEvaluation(ORG_ID, form, aiResult);
+      } catch (err) {
+        console.error("Error during analysis or save:", err);
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Ocurrió un error durante el análisis o guardado. Revisa la consola."
+        );
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    []
+  );
 
   const handleReset = useCallback(() => {
     setInterviewData(null);
@@ -41,25 +99,20 @@ const App: React.FC = () => {
   }, []);
 
   return (
-    // Fondo base (oscuro) a pantalla completa, sin limitar ancho
     <div className="min-h-screen w-full bg-[#020202] text-white font-sans overflow-x-hidden">
       <Header />
 
-      {/* El main ya no tiene 'container', ocupa todo el ancho */}
       <main className="w-full">
-        {/* Formulario / pantalla principal */}
         {!analysisResult && !isLoading && (
           <InterviewForm onSubmit={handleFormSubmit} />
         )}
 
-        {/* Loading centrado */}
         {isLoading && (
           <div className="max-w-7xl mx-auto px-4 md:px-8">
             <LoadingState />
           </div>
         )}
 
-        {/* Error centrado */}
         {error && (
           <div className="max-w-7xl mx-auto px-4 md:px-8 text-center p-8">
             <div
@@ -78,7 +131,6 @@ const App: React.FC = () => {
           </div>
         )}
 
-        {/* Resultados centrados, pero fondo sigue siendo de pantalla completa */}
         {analysisResult && interviewData && (
           <div className="max-w-7xl mx-auto px-4 md:px-8">
             <AnalysisResults

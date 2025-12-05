@@ -41,3 +41,47 @@ export interface AnalysisResult {
   temporalRiskFactors: string[];
   finalVerdict: string;
 }
+
+// ===== TIPOS PARA BACKEND TEACHERS =====
+
+export interface TeacherForm {
+  candidate: {
+    fullName: string;
+    age: number;
+    schoolName: string;
+    programName: string;
+    careerSummary: string;
+    teachingExperience: string;
+  };
+  availability: {
+    scheduleDetails: string;
+    acceptsCommittees: string;
+    otherJobsImpact: string;
+  };
+  classroomManagement: {
+    evaluationMethodology: string;
+    planIfHalfFail: string;
+    handleApatheticStudent: string;
+  };
+  aiAttitude: {
+    usesAiHow: string;
+    ethicalUseMeasures: string;
+    handleAiPlagiarism: string;
+  };
+  coherenceCommitment: {
+    caseStudent2_9: string;
+    emergencyProtocol: string;
+    handleNegativeFeedback: string;
+  };
+}
+
+// Resultado “compacto” que mandaremos al backend
+export interface TeacherAiResult {
+  strengths?: string;
+  weaknesses?: string;
+  improvementAreas?: string;
+  teachingSuitabilityScore?: number;
+  recommendation?: string;
+  overallComment?: string;
+  rawOutput?: AnalysisResult; // seguimos guardando el JSON completo si lo necesitas
+}
