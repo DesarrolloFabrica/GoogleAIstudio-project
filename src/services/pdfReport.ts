@@ -9,7 +9,7 @@ const LINE_HEIGHT = 14;
 
 // Colores corporativos aproximados CUN
 const BRAND_GREEN = { r: 0, g: 177, b: 113 }; // verde
-const BRAND_DARK = { r: 8, g: 32, b: 36 };   // fondo header
+const BRAND_DARK = { r: 8, g: 32, b: 36 }; // fondo header
 
 // Helper para cargar la imagen del logo
 function loadImage(src: string): Promise<HTMLImageElement> {
@@ -21,10 +21,14 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
-export async function generateAnalysisPdfFromData(
+/**
+ * Construye el jsPDF con todo el contenido del reporte.
+ * No descarga ni devuelve blob: solo devuelve la instancia jsPDF.
+ */
+async function buildAnalysisPdfDoc(
   result: AnalysisResult,
   interview: InterviewData
-) {
+): Promise<jsPDF> {
   const doc = new jsPDF("p", "pt", "a4");
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
@@ -46,11 +50,19 @@ export async function generateAnalysisPdfFromData(
     doc.setTextColor(255, 255, 255);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(16);
-    doc.text("Corporación Unificada Nacional de Educación Superior - CUN", MARGIN_X + logoWidth + 20, 35);
+    doc.text(
+      "Corporación Unificada Nacional de Educación Superior - CUN",
+      MARGIN_X + logoWidth + 20,
+      35
+    );
 
     doc.setFontSize(13);
     doc.setFont("helvetica", "normal");
-    doc.text("Reporte de Idoneidad y Evaluación de Candidato", MARGIN_X + logoWidth + 20, 55);
+    doc.text(
+      "Reporte de Idoneidad y Evaluación de Candidato",
+      MARGIN_X + logoWidth + 20,
+      55
+    );
   } catch {
     // Si el logo falla, al menos dejamos la banda negra con título
     doc.setFillColor(BRAND_DARK.r, BRAND_DARK.g, BRAND_DARK.b);
@@ -118,15 +130,7 @@ export async function generateAnalysisPdfFromData(
 
     doc.setDrawColor(BRAND_GREEN.r, BRAND_GREEN.g, BRAND_GREEN.b);
     doc.setFillColor(232, 255, 244);
-    doc.roundedRect(
-      MARGIN_X,
-      y,
-      boxWidth,
-      boxHeight,
-      4,
-      4,
-      "FD" // fill + stroke
-    );
+    doc.roundedRect(MARGIN_X, y, boxWidth, boxHeight, 4, 4, "FD");
 
     doc.setFont("helvetica", "bold");
     doc.setFontSize(11);
@@ -155,7 +159,10 @@ export async function generateAnalysisPdfFromData(
   addLabelValue("Escuela", interview.school || "N/D");
   addLabelValue("Edad", interview.age ? `${interview.age} años` : "N/D");
   y += 4;
-  addLabelValue("Ventana de Retención", result.resignationRiskWindow || "No estimada");
+  addLabelValue(
+    "Ventana de Retención",
+    result.resignationRiskWindow || "No estimada"
+  );
 
   // bloque verde de score a la derecha
   const boxWidthScore = 170;
@@ -208,11 +215,7 @@ export async function generateAnalysisPdfFromData(
     // título de la dimensión
     doc.setFont("helvetica", "bold");
     doc.setFontSize(11);
-    doc.text(
-      `• ${ca.category} (${Math.round(ca.score)}/100)`,
-      MARGIN_X,
-      y
-    );
+    doc.text(`• ${ca.category} (${Math.round(ca.score)}/100)`, MARGIN_X, y);
     y += LINE_HEIGHT;
 
     // subsecciones
@@ -238,7 +241,9 @@ export async function generateAnalysisPdfFromData(
     doc.setFontSize(10);
     doc.text("Observación IA:", MARGIN_X, y);
     y += LINE_HEIGHT - 4;
-    addParagraph(ca.observacionesCorregidas || "Sin observación generada por IA.");
+    addParagraph(
+      ca.observacionesCorregidas || "Sin observación generada por IA."
+    );
 
     y += 4;
   });
@@ -251,7 +256,9 @@ export async function generateAnalysisPdfFromData(
       addParagraph(rec);
     });
   } else {
-    addParagraph("No se identificaron riesgos que requieran mitigación específica.");
+    addParagraph(
+      "No se identificaron riesgos que requieran mitigación específica."
+    );
   }
 
   // ---------------- FACTORES TEMPORALES ----------------
@@ -269,7 +276,30 @@ export async function generateAnalysisPdfFromData(
     addParagraph("No se detectaron factores de riesgo temporal relevantes.");
   }
 
-  // Nombre de archivo
+  return doc;
+}
+
+/**
+ * Genera el PDF, lo descarga opcionalmente en el navegador
+ * y devuelve un Blob listo para enviar al backend.
+ */
+export async function generateAnalysisPdfFromData(
+  result: AnalysisResult,
+  interview: InterviewData,
+  options?: { download?: boolean }
+): Promise<Blob> {
+  const doc = await buildAnalysisPdfDoc(result, interview);
+
+  // Nombre seguro para archivo
   const safeName = (interview.candidateName || "Candidato").replace(/ /g, "_");
-  doc.save(`Reporte_IA_${safeName}.pdf`);
+  const fileName = `Reporte_IA_${safeName}.pdf`;
+
+  // Descarga en el navegador (comportamiento anterior)
+  if (options?.download !== false) {
+    doc.save(fileName);
+  }
+
+  // Devolver Blob para subir al backend
+  const blob = doc.output("blob") as Blob;
+  return blob;
 }

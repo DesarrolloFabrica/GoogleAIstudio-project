@@ -17,6 +17,7 @@ import { AnalysisResult, InterviewData } from "../types";
 import GaugeChart from "./GaugeChart";
 import ComparativeBars from "./ComparativeBars";
 import { generateAnalysisPdfFromData } from "../services/pdfReport";
+import { uploadTeacherReport } from "../services/teachersService";
 
 // --- UTILIDADES VISUALES ---
 
@@ -100,6 +101,8 @@ interface AnalysisResultsProps {
   result: AnalysisResult;
   interviewData: InterviewData;
   onReset: () => void;
+  // nuevo: id de la evaluación guardada en el backend
+  evaluationId?: string;
 }
 
 const REPORT_ELEMENT_ID = "report-to-download";
@@ -108,15 +111,27 @@ const AnalysisResults: React.FC<AnalysisResultsProps> = ({
   result,
   interviewData,
   onReset,
+  evaluationId,
 }) => {
   const [isDownloading, setIsDownloading] = useState(false);
 
   const handleDownloadPDF = async () => {
-    setIsDownloading(true);
     try {
-      await generateAnalysisPdfFromData(result, interviewData);
+      setIsDownloading(true);
+
+      // genera el PDF, lo descarga en el navegador y devuelve el Blob
+      const pdfBlob = await generateAnalysisPdfFromData(result, interviewData);
+
+      // si ya tenemos el id de la evaluación, lo subimos al backend
+      if (evaluationId) {
+        await uploadTeacherReport(evaluationId, pdfBlob);
+      } else {
+        console.warn(
+          "No hay evaluationId: solo se descargó el PDF localmente, no se subió a Drive."
+        );
+      }
     } catch (error) {
-      console.error("Error al generar PDF:", error);
+      console.error("Error al generar o subir el PDF:", error);
     } finally {
       setIsDownloading(false);
     }
@@ -170,7 +185,9 @@ const AnalysisResults: React.FC<AnalysisResultsProps> = ({
             "
           >
             {isDownloading ? (
-              <span className="animate-pulse">Generando...</span>
+              <span className="animate-pulse">
+                Generando{evaluationId ? " y subiendo..." : "..."}
+              </span>
             ) : (
               <>
                 <Download className="w-4 h-4" /> Exportar PDF

@@ -3,11 +3,10 @@ import {
   InterviewData,
   AnalysisResult,
   TeacherForm,
+  TeacherAiResult,
 } from "./types";
 
-import {
-  analyzeTeacherInterview,
-} from "./services/geminiService";
+import { analyzeTeacherInterview } from "./services/geminiService";
 import { createTeacherEvaluation } from "./services/teachersService";
 
 import Header from "./components/Header";
@@ -53,6 +52,7 @@ const App: React.FC = () => {
     useState<InterviewData | null>(null);
   const [analysisResult, setAnalysisResult] =
     useState<AnalysisResult | null>(null);
+  const [evaluationId, setEvaluationId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -62,12 +62,13 @@ const App: React.FC = () => {
       setError(null);
       setAnalysisResult(null);
       setInterviewData(data);
+      setEvaluationId(null);
 
       try {
         // 1) IA: análisis con Gemini
-        const aiResult = await analyzeTeacherInterview(data);
+        const aiResult: TeacherAiResult = await analyzeTeacherInterview(data);
 
-        // seguir usando el JSON completo para los gráficos
+        // Seguimos usando el JSON completo para los gráficos
         if (aiResult.rawOutput) {
           setAnalysisResult(aiResult.rawOutput);
         }
@@ -75,8 +76,9 @@ const App: React.FC = () => {
         // 2) DTO para backend
         const form = mapToTeacherForm(data);
 
-        // 3) Guardar evaluación en el backend
-        await createTeacherEvaluation(ORG_ID, form, aiResult);
+        // 3) Guardar evaluación en el backend y obtener el id
+        const { id } = await createTeacherEvaluation(ORG_ID, form, aiResult);
+        setEvaluationId(id);
       } catch (err) {
         console.error("Error during analysis or save:", err);
         setError(
@@ -94,6 +96,7 @@ const App: React.FC = () => {
   const handleReset = useCallback(() => {
     setInterviewData(null);
     setAnalysisResult(null);
+    setEvaluationId(null);
     setIsLoading(false);
     setError(null);
   }, []);
@@ -137,6 +140,7 @@ const App: React.FC = () => {
               result={analysisResult}
               interviewData={interviewData}
               onReset={handleReset}
+              evaluationId={evaluationId ?? undefined}
             />
           </div>
         )}
