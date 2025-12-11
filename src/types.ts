@@ -1,8 +1,7 @@
-// Fix: The original content of this file was incorrect, containing example data and a circular import.
-// It has been replaced with the correct type definitions to be used across the application.
+// src/types.ts
 
+// --- EXISTENTE ---
 export type AcceptsCommitteesOption = 'Sí' | 'No' | 'Depende';
-
 
 export interface InterviewData {
   candidateName: string;
@@ -89,6 +88,25 @@ export interface TeacherAiResult {
   rawOutput?: AnalysisResult; // seguimos guardando el JSON completo si lo necesitas
 }
 
+// 🔹 NUEVO: estados de decisión del coordinador
+export type CoordinatorDecisionStatus = 'PENDIENTE' | 'APROBADO' | 'RECHAZADO';
+
+// 🔹 NUEVO: detalle de la decisión (lo que idealmente guardará el backend)
+export interface CoordinatorDecision {
+  status: CoordinatorDecisionStatus;
+  comment?: string | null;
+  decidedAt?: string | null;
+  decidedById?: string | null;
+  decidedByName?: string | null;
+}
+
+// 🔹 NUEVO: payload que enviará el frontend al backend
+export interface CoordinatorDecisionPayload {
+  status: CoordinatorDecisionStatus;
+  comment?: string;
+}
+
+// Resumen que devuelve el backend al listar
 export interface TeacherEvaluationSummary {
   id: string;
   createdAt: string;
@@ -103,4 +121,12 @@ export interface TeacherEvaluationSummary {
   aiFinalRecommendation: string;
   aiOverallComment: string;
   aiReportDriveFileId?: string | null;
+
+  // 🔹 NUEVO: decisión del coordinador (si existe)
+  coordinatorDecision?: CoordinatorDecision;
+  // 🔹 NUEVO: campos pensados para la decisión del coordinador
+  coordinatorDecisionStatus?: "PENDIENTE" | "APROBADO" | "RECHAZADO" | null;
+  coordinatorDecisionBy?: string | null;
+  coordinatorDecisionAt?: string | null;
+  coordinatorDecisionComment?: string | null;
 }

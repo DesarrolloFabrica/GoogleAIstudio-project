@@ -1,233 +1,51 @@
-import React, { useState, useCallback } from "react";
-import {
-  InterviewData,
-  AnalysisResult,
-  TeacherForm,
-  TeacherAiResult,
-} from "./types";
+// src/App.tsx
+import React from "react";
+import { Routes, Route, Navigate } from "react-router-dom";
+import { useAuth } from "./context/AuthContext";
 
-import { analyzeTeacherInterview } from "./services/geminiService";
-import {
-  createTeacherEvaluation,
-  getTeacherEvaluationById,
-} from "./services/teachersService";
+// Consolas por rol
+import LeaderConsole from "./pages/leader/LeaderConsole";
+import CoordinatorConsole from "./pages/coordinator/CoordinatorConsole";
+import AdminConsole from "./pages/admin/AdminConsole";
 
-import Header from "./components/Header";
-import InterviewForm from "./components/InterviewForm";
-import AnalysisResults from "./components/AnalysisResults";
-import LoadingState from "./components/LoadingState";
-import EvaluationsHistory from "./components/EvaluationsHistory";
-
-const ORG_ID = import.meta.env.VITE_ORG_ID ?? "ORG_DEFAULT";
-
-type ViewMode = "analyze" | "history";
-
-const mapToTeacherForm = (data: InterviewData): TeacherForm => ({
-  candidate: {
-    fullName: data.candidateName,
-    age: Number(data.age) || 0,
-    schoolName: data.school,
-    programName: data.program,
-    careerSummary: data.careerSummary,
-    teachingExperience: data.previousExperience,
-  },
-  availability: {
-    scheduleDetails: data.availabilityDetails,
-    acceptsCommittees: data.acceptsCommittees,
-    otherJobsImpact: data.otherJobs,
-  },
-  classroomManagement: {
-    evaluationMethodology: data.evaluationMethodology,
-    planIfHalfFail: data.failureRatePlan,
-    handleApatheticStudent: data.apatheticStudentPlan,
-  },
-  aiAttitude: {
-    usesAiHow: data.aiToolsUsage,
-    ethicalUseMeasures: data.ethicalAiMeasures,
-    handleAiPlagiarism: data.aiPlagiarismPrevention,
-  },
-  coherenceCommitment: {
-    caseStudent2_9: data.scenario29,
-    emergencyProtocol: data.scenarioCoverage,
-    handleNegativeFeedback: data.scenarioFeedback,
-  },
-});
-
-// inverso: TeacherForm -> InterviewData (para reconstruir el reporte)
-const mapFormToInterviewData = (form: TeacherForm): InterviewData => ({
-  candidateName: form.candidate.fullName,
-  age: form.candidate.age ? String(form.candidate.age) : "",
-  school: form.candidate.schoolName,
-  program: form.candidate.programName,
-  careerSummary: form.candidate.careerSummary,
-  previousExperience: form.candidate.teachingExperience,
+import LoginPage from "./pages/Login/LoginPage";
+import ProtectedRoute from "./components/ProtectedRoute";
   
-  availabilityDetails: form.availability.scheduleDetails,
-  acceptsCommittees: form.availability.acceptsCommittees,
-  otherJobs: form.availability.otherJobsImpact,
-
-  evaluationMethodology: form.classroomManagement.evaluationMethodology,
-  failureRatePlan: form.classroomManagement.planIfHalfFail,
-  apatheticStudentPlan: form.classroomManagement.handleApatheticStudent,
-
-  aiToolsUsage: form.aiAttitude.usesAiHow,
-  ethicalAiMeasures: form.aiAttitude.ethicalUseMeasures,
-  aiPlagiarismPrevention: form.aiAttitude.handleAiPlagiarism,
-
-  scenario29: form.coherenceCommitment.caseStudent2_9,
-  scenarioCoverage: form.coherenceCommitment.emergencyProtocol,
-  scenarioFeedback: form.coherenceCommitment.handleNegativeFeedback,
-});
-
 
 const App: React.FC = () => {
-  const [mode, setMode] = useState<ViewMode>("analyze");
+  const { user } = useAuth();
 
-  const [interviewData, setInterviewData] =
-    useState<InterviewData | null>(null);
-  const [analysisResult, setAnalysisResult] =
-    useState<AnalysisResult | null>(null);
-  const [evaluationId, setEvaluationId] = useState<string | null>(null);
+  // Ruta raíz: decide a dónde mandar según si hay usuario
+  const HomeRedirect = () => {
+    if (!user) return <Navigate to="/login" replace />;
 
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
+    if (user.role === "leader") return <Navigate to="/leader" replace />;
+    if (user.role === "coordinator") return <Navigate to="/coordinator" replace />;
 
-  // 1) flujo normal: analizar desde el formulario
-  const handleFormSubmit = useCallback(
-    async (data: InterviewData) => {
-      setIsLoading(true);
-      setError(null);
-      setAnalysisResult(null);
-      setInterviewData(data);
-      setEvaluationId(null);
-
-      try {
-        const aiResult: TeacherAiResult =
-          await analyzeTeacherInterview(data);
-
-        if (aiResult.rawOutput) {
-          setAnalysisResult(aiResult.rawOutput);
-        }
-
-        const form = mapToTeacherForm(data);
-        const saved = await createTeacherEvaluation(ORG_ID, form, aiResult);
-        // el backend devuelve { id, candidateId }, donde id = id de la evaluación
-        setEvaluationId(saved.id);
-
-
-      } catch (err) {
-        console.error("Error during analysis or save:", err);
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Ocurrió un error durante el proceso."
-        );
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    []
-  );
-
-  // 2) abrir detalle desde el historial
-  const handleOpenEvaluationFromHistory = useCallback(
-    async (id: string) => {
-      setIsLoading(true);
-      setError(null);
-      setAnalysisResult(null);
-      setInterviewData(null);
-      setEvaluationId(null);
-
-      try {
-        const detail = await getTeacherEvaluationById(id);
-        // detail.formRawData y detail.aiRawJson salen tal cual del backend
-        const form: TeacherForm = detail.formRawData;
-        const analysis: AnalysisResult = detail.aiRawJson;
-
-        const interview = mapFormToInterviewData(form);
-
-        setInterviewData(interview);
-        setAnalysisResult(analysis);
-        setEvaluationId(detail.id);
-
-        // volvemos a la vista de reporte (misma que tras un análisis nuevo)
-        setMode("analyze");
-      } catch (err) {
-        console.error("Error al cargar detalle de evaluación:", err);
-        setError(
-          err instanceof Error
-            ? err.message
-            : "No se pudo cargar el detalle de la evaluación."
-        );
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    []
-  );
-
-  const handleReset = useCallback(() => {
-    setInterviewData(null);
-    setAnalysisResult(null);
-    setEvaluationId(null);
-    setIsLoading(false);
-    setError(null);
-  }, []);
+    return <Navigate to="/admin" replace />;
+  };
 
   return (
-    <div className="min-h-screen w-full bg-[#020202] text-white font-sans overflow-x-hidden">
-      <Header mode={mode} onChangeMode={setMode} />
+    <Routes>
+      <Route path="/" element={<HomeRedirect />} />
+      <Route path="/login" element={<LoginPage />} />
 
-      <main className="w-full">
-        {mode === "analyze" && (
-          <>
-            {!analysisResult && !isLoading && (
-              <InterviewForm onSubmit={handleFormSubmit} />
-            )}
+      {/* Rutas protegidas por rol */}
+      <Route element={<ProtectedRoute allowedRoles={["leader"]} />}>
+        <Route path="/leader" element={<LeaderConsole />} />
+      </Route>
 
-            {isLoading && (
-              <div className="max-w-7xl mx-auto px-4 md:px-8">
-                <LoadingState />
-              </div>
-            )}
+      <Route element={<ProtectedRoute allowedRoles={["coordinator"]} />}>
+        <Route path="/coordinator" element={<CoordinatorConsole />} />
+      </Route>
 
-            {error && (
-              <div className="max-w-7xl mx-auto px-4 md:px-8 text-center p-8">
-                <div className="bg-red-900/50 border border-red-500 text-red-300 px-4 py-3 rounded-lg">
-                  <strong className="font-bold">Error:</strong>
-                  <span className="ml-2">{error}</span>
-                </div>
+      <Route element={<ProtectedRoute allowedRoles={["admin"]} />}>
+        <Route path="/admin" element={<AdminConsole />} />
+      </Route>
 
-                <button
-                  onClick={handleReset}
-                  className="mt-6 bg-emerald-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-emerald-700 transition-colors duration-300"
-                >
-                  Comenzar de Nuevo
-                </button>
-              </div>
-            )}
-
-            {analysisResult && interviewData && (
-              <div className="max-w-7xl mx-auto px-4 md:px-8">
-                <AnalysisResults
-                  result={analysisResult}
-                  interviewData={interviewData}
-                  onReset={handleReset}
-                  evaluationId={evaluationId ?? undefined}
-                />
-              </div>
-            )}
-          </>
-        )}
-
-        {mode === "history" && (
-          <EvaluationsHistory
-            onBackToAnalyze={() => setMode("analyze")}
-            onOpenEvaluation={handleOpenEvaluationFromHistory}
-          />
-        )}
-      </main>
-    </div>
+      {/* Fallback */}
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
   );
 };
 

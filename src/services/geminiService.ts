@@ -1,3 +1,4 @@
+// src/services/geminiService.ts
 import { GoogleGenAI, Type } from "@google/genai";
 import {
   InterviewData,

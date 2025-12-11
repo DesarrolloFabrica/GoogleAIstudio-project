@@ -1,5 +1,10 @@
 // src/services/teachersService.ts
-import type { TeacherForm, TeacherAiResult } from "../types";
+import type {
+  TeacherForm,
+  TeacherAiResult,
+  CoordinatorDecisionPayload,
+  TeacherEvaluationSummary,
+} from "../types";
 import api from "./apiClient";
 
 // Lo que devuelve el backend en POST /teachers/evaluations
@@ -50,7 +55,9 @@ export async function uploadTeacherReport(
 }
 
 export async function listTeacherEvaluations() {
-  const { data } = await api.get('/teachers/evaluations');
+  const { data } = await api.get<TeacherEvaluationSummary[]>(
+    "/teachers/evaluations"
+  );
   return data;
 }
 
@@ -62,4 +69,19 @@ export async function getTeacherEvaluation(id: string) {
 export async function getTeacherEvaluationById(id: string) {
   const { data } = await api.get(`/teachers/evaluations/${id}`);
   return data; // incluye formRawData y aiRawJson
+}
+
+// 🔹 NUEVO: actualizar decisión del coordinador
+export async function updateTeacherDecision(
+  evaluationId: string,
+  payload: CoordinatorDecisionPayload
+): Promise<TeacherEvaluationSummary> {
+  // Asumimos que el backend tendrá este endpoint:
+  // POST /teachers/evaluations/:id/decision
+  const { data } = await api.post<TeacherEvaluationSummary>(
+    `/teachers/evaluations/${evaluationId}/decision`,
+    payload
+  );
+
+  return data;
 }
