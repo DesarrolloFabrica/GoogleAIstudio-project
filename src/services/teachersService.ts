@@ -48,3 +48,18 @@ export async function uploadTeacherReport(
     }
   );
 }
+
+export async function listTeacherEvaluations() {
+  const { data } = await api.get('/teachers/evaluations');
+  return data;
+}
+
+export async function getTeacherEvaluation(id: string) {
+  const { data } = await api.get(`/teachers/evaluations/${id}`);
+  return data;
+}
+
+export async function getTeacherEvaluationById(id: string) {
+  const { data } = await api.get(`/teachers/evaluations/${id}`);
+  return data; // incluye formRawData y aiRawJson
+}

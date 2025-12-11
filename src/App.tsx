@@ -7,14 +7,20 @@ import {
 } from "./types";
 
 import { analyzeTeacherInterview } from "./services/geminiService";
-import { createTeacherEvaluation } from "./services/teachersService";
+import {
+  createTeacherEvaluation,
+  getTeacherEvaluationById,
+} from "./services/teachersService";
 
 import Header from "./components/Header";
 import InterviewForm from "./components/InterviewForm";
 import AnalysisResults from "./components/AnalysisResults";
 import LoadingState from "./components/LoadingState";
+import EvaluationsHistory from "./components/EvaluationsHistory";
 
 const ORG_ID = import.meta.env.VITE_ORG_ID ?? "ORG_DEFAULT";
+
+type ViewMode = "analyze" | "history";
 
 const mapToTeacherForm = (data: InterviewData): TeacherForm => ({
   candidate: {
@@ -47,15 +53,46 @@ const mapToTeacherForm = (data: InterviewData): TeacherForm => ({
   },
 });
 
+// inverso: TeacherForm -> InterviewData (para reconstruir el reporte)
+const mapFormToInterviewData = (form: TeacherForm): InterviewData => ({
+  candidateName: form.candidate.fullName,
+  age: form.candidate.age ? String(form.candidate.age) : "",
+  school: form.candidate.schoolName,
+  program: form.candidate.programName,
+  careerSummary: form.candidate.careerSummary,
+  previousExperience: form.candidate.teachingExperience,
+  
+  availabilityDetails: form.availability.scheduleDetails,
+  acceptsCommittees: form.availability.acceptsCommittees,
+  otherJobs: form.availability.otherJobsImpact,
+
+  evaluationMethodology: form.classroomManagement.evaluationMethodology,
+  failureRatePlan: form.classroomManagement.planIfHalfFail,
+  apatheticStudentPlan: form.classroomManagement.handleApatheticStudent,
+
+  aiToolsUsage: form.aiAttitude.usesAiHow,
+  ethicalAiMeasures: form.aiAttitude.ethicalUseMeasures,
+  aiPlagiarismPrevention: form.aiAttitude.handleAiPlagiarism,
+
+  scenario29: form.coherenceCommitment.caseStudent2_9,
+  scenarioCoverage: form.coherenceCommitment.emergencyProtocol,
+  scenarioFeedback: form.coherenceCommitment.handleNegativeFeedback,
+});
+
+
 const App: React.FC = () => {
+  const [mode, setMode] = useState<ViewMode>("analyze");
+
   const [interviewData, setInterviewData] =
     useState<InterviewData | null>(null);
   const [analysisResult, setAnalysisResult] =
     useState<AnalysisResult | null>(null);
   const [evaluationId, setEvaluationId] = useState<string | null>(null);
+
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
+  // 1) flujo normal: analizar desde el formulario
   const handleFormSubmit = useCallback(
     async (data: InterviewData) => {
       setIsLoading(true);
@@ -65,26 +102,62 @@ const App: React.FC = () => {
       setEvaluationId(null);
 
       try {
-        // 1) IA: análisis con Gemini
-        const aiResult: TeacherAiResult = await analyzeTeacherInterview(data);
+        const aiResult: TeacherAiResult =
+          await analyzeTeacherInterview(data);
 
-        // Seguimos usando el JSON completo para los gráficos
         if (aiResult.rawOutput) {
           setAnalysisResult(aiResult.rawOutput);
         }
 
-        // 2) DTO para backend
         const form = mapToTeacherForm(data);
+        const saved = await createTeacherEvaluation(ORG_ID, form, aiResult);
+        // el backend devuelve { id, candidateId }, donde id = id de la evaluación
+        setEvaluationId(saved.id);
 
-        // 3) Guardar evaluación en el backend y obtener el id
-        const { id } = await createTeacherEvaluation(ORG_ID, form, aiResult);
-        setEvaluationId(id);
+
       } catch (err) {
         console.error("Error during analysis or save:", err);
         setError(
           err instanceof Error
             ? err.message
-            : "Ocurrió un error durante el análisis o guardado. Revisa la consola."
+            : "Ocurrió un error durante el proceso."
+        );
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    []
+  );
+
+  // 2) abrir detalle desde el historial
+  const handleOpenEvaluationFromHistory = useCallback(
+    async (id: string) => {
+      setIsLoading(true);
+      setError(null);
+      setAnalysisResult(null);
+      setInterviewData(null);
+      setEvaluationId(null);
+
+      try {
+        const detail = await getTeacherEvaluationById(id);
+        // detail.formRawData y detail.aiRawJson salen tal cual del backend
+        const form: TeacherForm = detail.formRawData;
+        const analysis: AnalysisResult = detail.aiRawJson;
+
+        const interview = mapFormToInterviewData(form);
+
+        setInterviewData(interview);
+        setAnalysisResult(analysis);
+        setEvaluationId(detail.id);
+
+        // volvemos a la vista de reporte (misma que tras un análisis nuevo)
+        setMode("analyze");
+      } catch (err) {
+        console.error("Error al cargar detalle de evaluación:", err);
+        setError(
+          err instanceof Error
+            ? err.message
+            : "No se pudo cargar el detalle de la evaluación."
         );
       } finally {
         setIsLoading(false);
@@ -103,46 +176,55 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen w-full bg-[#020202] text-white font-sans overflow-x-hidden">
-      <Header />
+      <Header mode={mode} onChangeMode={setMode} />
 
       <main className="w-full">
-        {!analysisResult && !isLoading && (
-          <InterviewForm onSubmit={handleFormSubmit} />
+        {mode === "analyze" && (
+          <>
+            {!analysisResult && !isLoading && (
+              <InterviewForm onSubmit={handleFormSubmit} />
+            )}
+
+            {isLoading && (
+              <div className="max-w-7xl mx-auto px-4 md:px-8">
+                <LoadingState />
+              </div>
+            )}
+
+            {error && (
+              <div className="max-w-7xl mx-auto px-4 md:px-8 text-center p-8">
+                <div className="bg-red-900/50 border border-red-500 text-red-300 px-4 py-3 rounded-lg">
+                  <strong className="font-bold">Error:</strong>
+                  <span className="ml-2">{error}</span>
+                </div>
+
+                <button
+                  onClick={handleReset}
+                  className="mt-6 bg-emerald-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-emerald-700 transition-colors duration-300"
+                >
+                  Comenzar de Nuevo
+                </button>
+              </div>
+            )}
+
+            {analysisResult && interviewData && (
+              <div className="max-w-7xl mx-auto px-4 md:px-8">
+                <AnalysisResults
+                  result={analysisResult}
+                  interviewData={interviewData}
+                  onReset={handleReset}
+                  evaluationId={evaluationId ?? undefined}
+                />
+              </div>
+            )}
+          </>
         )}
 
-        {isLoading && (
-          <div className="max-w-7xl mx-auto px-4 md:px-8">
-            <LoadingState />
-          </div>
-        )}
-
-        {error && (
-          <div className="max-w-7xl mx-auto px-4 md:px-8 text-center p-8">
-            <div
-              className="bg-red-900/50 border border-red-500 text-red-300 px-4 py-3 rounded-lg relative"
-              role="alert"
-            >
-              <strong className="font-bold">¡Error!</strong>
-              <span className="block sm:inline ml-2">{error}</span>
-            </div>
-            <button
-              onClick={handleReset}
-              className="mt-6 bg-[#007BFF] text-white font-bold py-2 px-6 rounded-lg hover:bg-[#0056D2] transition-colors duration-300"
-            >
-              Comenzar de Nuevo
-            </button>
-          </div>
-        )}
-
-        {analysisResult && interviewData && (
-          <div className="max-w-7xl mx-auto px-4 md:px-8">
-            <AnalysisResults
-              result={analysisResult}
-              interviewData={interviewData}
-              onReset={handleReset}
-              evaluationId={evaluationId ?? undefined}
-            />
-          </div>
+        {mode === "history" && (
+          <EvaluationsHistory
+            onBackToAnalyze={() => setMode("analyze")}
+            onOpenEvaluation={handleOpenEvaluationFromHistory}
+          />
         )}
       </main>
     </div>

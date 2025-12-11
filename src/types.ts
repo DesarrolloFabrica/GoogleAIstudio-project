@@ -1,6 +1,9 @@
 // Fix: The original content of this file was incorrect, containing example data and a circular import.
 // It has been replaced with the correct type definitions to be used across the application.
 
+export type AcceptsCommitteesOption = 'Sí' | 'No' | 'Depende';
+
+
 export interface InterviewData {
   candidateName: string;
   age: string;
@@ -9,7 +12,7 @@ export interface InterviewData {
   careerSummary: string;
   previousExperience: string;
   availabilityDetails: string;
-  acceptsCommittees: 'Sí' | 'No' | 'Depende';
+  acceptsCommittees: AcceptsCommitteesOption;
   otherJobs: string;
   evaluationMethodology: string;
   failureRatePlan: string;
@@ -55,7 +58,7 @@ export interface TeacherForm {
   };
   availability: {
     scheduleDetails: string;
-    acceptsCommittees: string;
+    acceptsCommittees: AcceptsCommitteesOption;
     otherJobsImpact: string;
   };
   classroomManagement: {
@@ -84,4 +87,20 @@ export interface TeacherAiResult {
   recommendation?: string;
   overallComment?: string;
   rawOutput?: AnalysisResult; // seguimos guardando el JSON completo si lo necesitas
+}
+
+export interface TeacherEvaluationSummary {
+  id: string;
+  createdAt: string;
+
+  candidate?: {
+    fullName: string;
+    schoolNameSnapshot?: string | null;
+    programNameSnapshot?: string | null;
+  };
+
+  aiTeachingSuitabilityScore: number;
+  aiFinalRecommendation: string;
+  aiOverallComment: string;
+  aiReportDriveFileId?: string | null;
 }
