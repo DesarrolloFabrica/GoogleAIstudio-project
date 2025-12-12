@@ -1,3 +1,4 @@
+// src/components/ComparativeBars.tsx
 import React from 'react';
 import { CategoryAnalysis } from '../types';
 

@@ -1,3 +1,4 @@
+// src/pages/admin/AdminConsole.tsx
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Activity,

@@ -227,10 +227,10 @@ const CoordinatorConsole: React.FC = () => {
               </span>
             </h2>
             <p className="text-sm md:text-base text-gray-400 font-light leading-relaxed">
-              Aquí puedes revisar los perfiles analizados por los líderes,
-              abrir el detalle de cada reporte generado por IA y registrar, en
-              una siguiente integración con backend, la decisión de
-              contratación para cada candidato.
+              Aquí puedes revisar los perfiles analizados por los líderes, abrir
+              el detalle de cada reporte generado por IA y registrar, en una
+              siguiente integración con backend, la decisión de contratación
+              para cada candidato.
             </p>
           </div>
         </header>
@@ -340,7 +340,12 @@ const CoordinatorConsole: React.FC = () => {
                       Estado:
                     </span>
                     {(
-                      ["ALL", "PENDIENTE", "APROBADO", "RECHAZADO"] as DecisionFilter[]
+                      [
+                        "ALL",
+                        "PENDIENTE",
+                        "APROBADO",
+                        "RECHAZADO",
+                      ] as DecisionFilter[]
                     ).map((opt) => (
                       <button
                         key={opt}

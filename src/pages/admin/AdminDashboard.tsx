@@ -1,3 +1,4 @@
+// src/pages/admin/AdminDashboard.tsx
 import React from "react";
 
 const AdminDashboard: React.FC = () => {

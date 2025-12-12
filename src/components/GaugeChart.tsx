@@ -1,3 +1,4 @@
+// src/components/GaugeChart.tsx
 import React from 'react';
 
 interface GaugeChartProps {

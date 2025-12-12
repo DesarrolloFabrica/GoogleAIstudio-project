@@ -1,3 +1,4 @@
+// src/components/LoadingState.tsx
 import React, { useState, useEffect } from 'react';
 import { BrainCircuit, Sparkles, Cpu, Search, Fingerprint } from 'lucide-react';
 

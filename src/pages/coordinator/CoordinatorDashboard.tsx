@@ -1,3 +1,4 @@
+//src/pages/coordinator/CoordinatorDashboard.tsx
 import React from "react";
 
 const CoordinatorDashboard: React.FC = () => {
