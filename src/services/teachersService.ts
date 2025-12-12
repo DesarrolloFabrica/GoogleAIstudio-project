@@ -13,6 +13,13 @@ export interface TeacherEvaluationResponse {
   candidateId: string;
 }
 
+// ...
+
+type ListEvalResponse =
+  | TeacherEvaluationSummary[]
+  | { items: TeacherEvaluationSummary[] }
+  | any; // por si acaso
+
 /**
  * Crea la evaluación en el backend (guarda candidato + AI summary).
  */
@@ -54,11 +61,24 @@ export async function uploadTeacherReport(
   );
 }
 
-export async function listTeacherEvaluations() {
-  const { data } = await api.get<TeacherEvaluationSummary[]>(
-    "/teachers/evaluations"
-  );
-  return data;
+
+export async function listTeacherEvaluations(): Promise<TeacherEvaluationSummary[]> {
+  const res = await api.get<ListEvalResponse>("/teachers/evaluations");
+
+  console.log("listTeacherEvaluations raw response:", res.data);
+
+  const data = res.data;
+
+  if (Array.isArray(data)) {
+    return data as TeacherEvaluationSummary[];
+  }
+
+  if (data && Array.isArray((data as any).items)) {
+    return (data as any).items as TeacherEvaluationSummary[];
+  }
+
+  // fallback defensivo
+  return [];
 }
 
 export async function getTeacherEvaluation(id: string) {

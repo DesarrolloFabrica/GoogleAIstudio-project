@@ -82,7 +82,7 @@ const AdminConsole: React.FC = () => {
       setError(null);
       try {
         const data = await listTeacherEvaluations();
-        setEvaluations(data);
+        setEvaluations(data); // ahora data es SIEMPRE array
       } catch (err) {
         console.error("Error al cargar evaluaciones (admin):", err);
         setError(
